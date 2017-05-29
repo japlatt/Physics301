@@ -1,7 +1,7 @@
 import numpy as np
 import emcee
 import kplr
-import transit
+import batman
 
 def Fw(t,t0,F0,sigma):
 	"""
