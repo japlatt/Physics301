@@ -20,6 +20,8 @@ def Fw(t,t0,F0,sigma):
         F = np.average(F0,weights=weights)
     
     return F
+
+
     
     
     
@@ -70,3 +72,24 @@ class DEOptimizer(object):
         over all the dimensions is lower than convThresh
         """
         return
+=======
+
+def correlate(flux, n_coors = 80, std_filter = 5):
+    coor = np.zeros(n_coors)
+    mean = np.nanmean(flux)
+    standard_dev = np.nanstd(flux)
+    for delta in xrange(n_coors):
+        I1 = copy(flux)
+        I2 = array(list(flux[delta:]) + list(flux[0:delta]))
+
+        inds1 = (I1 >= mean - std_filter*standard_dev) & \
+                (I1 <=  mean + std_filter*standard_dev) & \
+                 (I1 >= 0.5)
+        inds2 = (I2 >= mean - std_filter*standard_dev) & \
+                (I2 <=  mean + std_filter*standard_dev) & \
+                (I2 >= 0.5)
+        inds = inds1 & inds2
+        N = sum(inds)
+        coor[delta] = sum((I1[inds]*I2[inds]))/N
+    return coor
+
