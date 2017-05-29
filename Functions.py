@@ -4,7 +4,7 @@ import kplr
 import batman
 
 def Fw(t,t0,F0,sigma):
-	"""
+    """
 	Compute locally weighted F(t) given samples of t0 and
     f0, weighted by some timescale sigma
     
@@ -74,12 +74,12 @@ class DEOptimizer(object):
         return
 
 
-def correlate(time,flux, n_coors = 80, std_filter = 5):
+def correlate(flux, n_coors = 80, std_filter = 5):
     coor = np.zeros(n_coors)
     mean = np.nanmean(flux)
     standard_dev = np.nanstd(flux)
     for delta in xrange(n_coors):
-        I1 = copy(flux)
+        I1 = np.copy(flux)
         I2 = array(list(flux[delta:]) + list(flux[0:delta]))
 
         inds1 = (I1 >= mean - std_filter*standard_dev) & \
@@ -92,4 +92,20 @@ def correlate(time,flux, n_coors = 80, std_filter = 5):
         N = sum(inds)
         coor[delta] = sum((I1[inds]*I2[inds]))/N
     return coor
+    
+def Cn(time,flux,deltat):
+    """
+    Compute the correlation function for a given delta T scanned over all times
+    """
+    C = 0.0
+    N = 0
+    for i in range(len(time)):
+        Fi = flux[i]
+        Fipdt = Fw(time[i]+deltat,time,flux,1./24.)
+        if not np.isclose(Fipdt,0):
+            C += Fi*Fipdt
+            N += 1
+    
+    C /= float(N)
+    return C
 
