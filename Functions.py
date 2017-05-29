@@ -3,8 +3,9 @@ import emcee
 import kplr
 #import batman
 
-def Fw(t,t0,F0,sigma):
+def Fw(t ,t0, F0, sigma = 0.01):
     """
+    t - single time t
     Compute locally weighted F(t) given samples of t0 and
     f0, weighted by some timescale sigma
 
