@@ -72,9 +72,9 @@ class DEOptimizer(object):
         over all the dimensions is lower than convThresh
         """
         return
-=======
 
-def correlate(flux, n_coors = 80, std_filter = 5):
+
+def correlate(time,flux, n_coors = 80, std_filter = 5):
     coor = np.zeros(n_coors)
     mean = np.nanmean(flux)
     standard_dev = np.nanstd(flux)
