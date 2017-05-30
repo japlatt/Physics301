@@ -1,6 +1,7 @@
 import numpy as np
 import emcee
 import kplr
+from scipy.optimize import interp1d
 #import batman
 
 
@@ -40,27 +41,67 @@ class DEOptimizer(object):
     
     def Initialization(self,priorup,priordn):
         """
-        Set the initalization region
+        Set the initalization region.  Initialize Vectors
+        with a uniform random distribution between priorup and
+        priordn.
         """
+        self.VECTORS = np.random.random([len(priorup),N])
+        for i in range(len(ub)):
+                self.VECTORS[i,:] *= (ub[i]-lb[i])
+                self.VECTORS[i,:] += lb[i]
+                
+        self.DONORS = np.zeros(self.VECTORS.shape)
+        self.TRIALS = np.zeros(self.VECTORS.shape)
+        self.CURRENT_FX = np.zeros(self.VECTORS.shape[1])
+        self.StrategyProbs = np.array([0.25,0.25,0.25,0.25])
         return
+        
     def Mutation(self):
         """
-        Mutate the vectors, using the 4 rules.
+        Mutate the vectors.
         """
+        for i in range(self.VECTORS.shape[1]):
+            options = range(self.VECTORS.shape[1])
+            options.remove[i]
+            choices = np.random.choice(options,3,replace=False)
+            F = np.random.normal(0.5,0.3)
+            self.DONORS[:,i] = self.VECTORS[:,choices[0]]+F*(self.VECTORS[:,choices[1]]-self.VECTORS[:,choices[2]])
         return
+        
     def Recombination(self):
         """
         Recombine the donor vectors with the current vectors
-        to create the trial vectors
+        to create the trial vectors, including crossover.
         """
+        for i in range(self.VECTORS.shape[1]):
+            CR = np.random.normal(0.5,0.1)
+            for j in range(self.VECTORS.shape[0]):
+                if ((np.random.random() <= CR) or (j == np.random.choice(range(0,self.DONORS.shape[0])))):
+                    self.TRIALS[j,i] = self.DONORS[j,i]
+                else:
+                    self.TRIALS[j,i] = self.VECTORS[j,i]
         return
-    def Selection(self,likelihoodfunction):
+        
+    def Selection(self,ftominimize,x,y,yerr):
         """
-        call likelihoodfunction with the trial vectors, accept
+        call ftominimize with the trial vectors, accept
         if it improves the fit, and replace existing vectors
         with the trial vectors.
+        
+        ftominimize should accept 4 arguments:  The x coords
+        of datapoints, the y coords of sample points, the
+        errors on the y coords, and an array of parameters,
+        which the function handles internally to compute the model.
         """
+        for i in range(vectors.shape[1]):
+            f1 = self.CURRENT_FX[i]
+            f2 = ftominimize(x,y,yerr,trials[:,i])
+            if f2 <= f1:
+                self.VECTORS[:,i] = self.TRIALS[:,i]
+            else:
+                pass
         return
+        
     def UpdateStrategyProbs(self):
         """
         Update the probabilities that a given strategy will be attempted, as well
@@ -72,6 +113,15 @@ class DEOptimizer(object):
         Run the optimization for either Niter iterations, or until the rms scatter 
         over all the dimensions is lower than convThresh
         """
+        for i in range(Niter):
+            self.Mutation()
+            self.Recombination()
+            self.Selection()
+            
+            if np.mean(np.std(self.VECTORS,axis=1)) < convThresh:
+                break
+                
+        print "Optimization has Converged"
         return
 
 def correlate(flux, n_coors = 80,filt = False, std_filter = 5):
@@ -117,15 +167,22 @@ def correlate(flux, n_coors = 80,filt = False, std_filter = 5):
 def Cn(time,flux,deltat):
     """
     Compute the correlation function for a given delta T scanned over all times
+    
+    time is list of time points.
+    
+    flux is scipy.interp1d for flux samples.
+    
+    deltaT is the time offset to scan through.
     """
     C = 0.0
     N = 0
+    
     for i in range(len(time)):
-        Fi = flux[i]
-        Fipdt = Fw(time[i]+deltat,time,flux,1./24.)
+        Fi = flux(time)
+        Fipdt = Fw(time+deltat)
         if not np.isclose(Fipdt,0):
-            C += Fi*Fipdt
-            N += 1
+            C = np.sum( Fi*Fipdt )
+            N = len(Fipdt) - np.sum(np.isclose(Fipdt,0))
     
     C /= float(N)
     return C
