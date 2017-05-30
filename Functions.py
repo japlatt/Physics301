@@ -122,6 +122,7 @@ class DEOptimizer(object):
                 break
                 
         print "Optimization has Converged"
+        print "Best Parameters:  " , self.VECTORS[:,np.argmin(self.CURRENT_FX)]
         return
 
 def correlate(flux, n_coors = 80,filt = False, std_filter = 5):
@@ -186,4 +187,33 @@ def Cn(time,flux,deltat):
     
     C /= float(N)
     return C
+    
+def loglikelihood(xdata,ydata,yerr,parameters):
+    """
+    Compute the chi2 for a given set of parameters.
+    """
+    model = TransitModel(xdata,parameters)
+    chi2 = np.sum((ydata-model)**2/yerr**2)
+    return chi2
+
+def TransitModel(time,parameters):
+    """
+    Use the Batman transit modeling code to produce
+    a transit model brightness (normalized to 1), at
+    each time point.
+    """
+    
+    params     = batman.TransitParams()
+    params.t0  = parameters[0]                      # time of inferior conjunction
+    params.per = parameters[1]                      # orbital period
+    params.rp  = parameters[2]                      # planet radius (in units of stellar radii)
+    params.a   = parameters[3]                      # semi-major axis (in units of stellar radii)
+    params.inc = parameters[4]                      # orbital inclination (in degrees)
+    params.ecc = parameters[5]                      # eccentricity
+    params.w   = parameters[6]                      # longitude of periastron (in degrees)
+    params.u   = [parameters[7],parameters[8]]      # limb darkening coefficients [u1, u2]
+    params.limb_dark = "quadratic"                  # limb darkening model
+    
+    model = batman.TransitModel(params, t)
+    return model
 
