@@ -24,7 +24,35 @@ def Fw(t ,t0, F0, sigma = 0.01):
         F = np.average(F0,weights=weights)
 
     return F
-
+    
+def Query_database(exoplanet_name):
+    """
+    Query the Kepler database, and retrieve the lightcurve for a given
+    exoplanet.  Clean the lightcurve and normalize to 1.  Return
+    the time samples, flux samples, and the error on the flux samples.
+    """
+    client = kplr.API()
+    planet = client.planet(exoplanet_name)
+    lcs = planet.get_lightcurves(short_cadence=False)
+    time = np.zeros(0)
+    flux = np.zeros(0)
+    ferr = np.zeros(0)
+    
+    for lc in lcs:
+        with lc.open() as f:
+            hdu_data = f[1].data()
+            time = np.append(time,hdu_data["time"])
+            flux = np.append(flux,hdu_data["PDCSAP_FLUX"])
+            ferr = np.append(ferr,hud_data["PDCSAP_FLUX_ERR"])
+            
+    Time_cleaned = Time[np.isfinite(flux)]
+    Ferr_cleaned = ferr[np.isfinite(flux)]
+    Flux_cleaned = flux[np.isfinite(flux)]
+    
+    Ferr_norm = Ferr_cleaned / np.median(Flux_cleaned)
+    Flux_norm = Flux_cleaned / np.median(FLux_cleaned)
+    
+    return Time_cleaned , Flux_norm , Ferr_norm
 
 
 class DEOptimizer(object):
@@ -45,14 +73,14 @@ class DEOptimizer(object):
         with a uniform random distribution between priorup and
         priordn.
         """
-        self.VECTORS = np.random.random([len(priorup),N])
-        for i in range(len(ub)):
-                self.VECTORS[i,:] *= (ub[i]-lb[i])
-                self.VECTORS[i,:] += lb[i]
+        self.VECTORS = np.random.random([len(priorup),self.NWalkers])
+        for i in range(len(priorup)):
+                self.VECTORS[i,:] *= (priorup[i]-priordn[i])
+                self.VECTORS[i,:] += priordn[i]
                 
         self.DONORS = np.zeros(self.VECTORS.shape)
         self.TRIALS = np.zeros(self.VECTORS.shape)
-        self.CURRENT_FX = np.zeros(self.VECTORS.shape[1])
+        self.CURRENT_FX = np.ones(self.VECTORS.shape[1])*np.inf
         self.StrategyProbs = np.array([0.25,0.25,0.25,0.25])
         return
         
@@ -62,7 +90,7 @@ class DEOptimizer(object):
         """
         for i in range(self.VECTORS.shape[1]):
             options = range(self.VECTORS.shape[1])
-            options.remove[i]
+            options.remove(i)
             choices = np.random.choice(options,3,replace=False)
             F = np.random.normal(0.5,0.3)
             self.DONORS[:,i] = self.VECTORS[:,choices[0]]+F*(self.VECTORS[:,choices[1]]-self.VECTORS[:,choices[2]])
@@ -93,11 +121,13 @@ class DEOptimizer(object):
         errors on the y coords, and an array of parameters,
         which the function handles internally to compute the model.
         """
-        for i in range(vectors.shape[1]):
+        for i in range(self.VECTORS.shape[1]):
             f1 = self.CURRENT_FX[i]
-            f2 = ftominimize(x,y,yerr,trials[:,i])
+            f2 = ftominimize(x,y,yerr,self.TRIALS[:,i])
+            
             if f2 <= f1:
                 self.VECTORS[:,i] = self.TRIALS[:,i]
+                self.CURRENT_FX[i] = f2
             else:
                 pass
         return
@@ -108,7 +138,7 @@ class DEOptimizer(object):
         as CR and F for recombination.
         """
         return
-    def Optimize(Niter,convThresh):
+    def Optimize(self,Niter,convThresh,function,x,y,yerr):
         """
         Run the optimization for either Niter iterations, or until the rms scatter 
         over all the dimensions is lower than convThresh
@@ -116,7 +146,7 @@ class DEOptimizer(object):
         for i in range(Niter):
             self.Mutation()
             self.Recombination()
-            self.Selection()
+            self.Selection(function,x,y,yerr)
             
             if np.mean(np.std(self.VECTORS,axis=1)) < convThresh:
                 break
@@ -229,12 +259,11 @@ def Cn(time,flux,deltat):
     C /= float(N)
     return C
     
-def loglikelihood(xdata,ydata,yerr,parameters):
+def loglikelihood(time,flux,fluxerr,parameters):
     """
     Compute the chi2 for a given set of parameters.
     """
-    model = TransitModel(xdata,parameters)
-    chi2 = np.sum((ydata-model)**2/yerr**2)
+    chi2 = np.sum((flux-TransitModel(time,parameters))**2/fluxerr**2)
     return chi2
 
 def TransitModel(time,parameters):
@@ -255,6 +284,6 @@ def TransitModel(time,parameters):
     params.u   = [parameters[7],parameters[8]]      # limb darkening coefficients [u1, u2]
     params.limb_dark = "quadratic"                  # limb darkening model
     
-    model = batman.TransitModel(params, t)
-    return model
+    model = batman.TransitModel(params, time)
+    return model.light_curve(params)
 
