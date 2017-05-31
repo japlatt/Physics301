@@ -95,7 +95,6 @@ def Identify_transits(deltaT,depth):
     
     depth_processed = (depth-np.median(depth))/np.std(depth)
     transit_list = []
-    print np.sum(depth_processed <= -1000)
     
     while i<len(deltaT):
         if i%1000 ==0: print depth_processed[i]
