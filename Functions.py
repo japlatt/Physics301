@@ -55,6 +55,116 @@ def Query_database(exoplanet_name):
     return Time_cleaned , Flux_norm , Ferr_norm
 
 
+def Scan_for_transits(time,flux,lowerlim,upperlim,deltaT):
+    """
+    Scan a time series for the presence of transits occuring with
+    times between lowerlim and upperlim, spaced by deltaT.  This is
+    slow, so it should only be performed once.
+    
+    This function will return 2 arrays:
+    
+    depth:      The maximum signal depth.
+    deltaT:     The time intervals used in the search.
+    """
+    # bins and flux allow us to enhance our signal by using multiple 
+    # flux measurements made during different orbits to tease out the signal
+    bins = np.linspace(0,1,300)
+    Flux = np.zeros(len(bins)-1)
+    
+    deltaT = np.arange(lowerlim,upperlim,deltaT)
+    depth = np.zeros(deltaT.shape)
+    for j,t in enumerate(deltaT):
+        if np.isclose(t%0.25,0): print t
+        for i in range(len(bins)-1):
+            inds = np.logical_and(((time%t)/t>bins[i]),(time%t)/t<=bins[i+1])
+
+            Flux[i] = np.median(flux[inds])
+        depth[j] = np.min(Flux)
+        
+    return depth ,deltaT
+    
+def Identify_transits(deltaT,depth):
+    """
+    parse the full array of deltaT and depth, and identify the individual transit candidates, including
+    their time of peak signal and the depth of that signal
+    
+    return cleaned list of transit candidates (any depth greater than 1 standard deviation)
+    """
+    
+    i = 10
+    
+    depth_processed = (depth-np.median(depth))/np.std(depth)
+    transit_list = []
+    print np.sum(depth_processed <= -1000)
+    
+    while i<len(deltaT):
+        if i%1000 ==0: print depth_processed[i]
+        if depth_processed[i] <= -1:
+            # transit candidate, search for brightest nearby signal
+            Transit_time = 0.0
+            Transit_depth = np.inf
+            for j in range(i-10,i):
+                if depth[j] < Transit_depth:
+                    Transit_time = deltaT[j]
+                    Transit_depth = depth[j]
+            # have scanned from behind the first detected location, now want to scan ahead
+            # do so until the processed signal is back above 1 sigma
+            j = 0
+            while depth_processed[j+i] <= -1:
+                if depth[j+i] < Transit_depth:
+                    print Transit_depth,depth[j+i]
+                    Transit_time = deltaT[j+i]
+                    Transit_depth = depth[j+i]
+                j += 1
+            transit_list.append([Transit_time,Transit_depth])
+            i += j
+            
+        else:
+            i +=1
+    
+    Transit_array = np.zeros([len(transit_list),2])
+    for i in range(len(transit_list)):
+        Transit_array[i,0] = transit_list[i][0]
+        Transit_array[i,1] = transit_list[i][1]
+    return Transit_array
+        
+    
+def Get_scan_info(deltaT,depth,firstN,Flux,Time):
+    """
+    For the firstN strongest transits (as measured by depth), calculate the following 
+    two quantities:
+    
+    Ntransits:          The number of transits that occur when the lightcurve is folded on this timescale
+                        This is useful for discriminating real transits from harmonics.
+    
+    Transitdepthstd:    The standard deviation of the measured fluxes at the peak of the transit signal.  
+                        We expect this should be larger if the timescale deltaT is a fraction of the true
+                        transit signal, because it will place transits in resonance, but also non-transits
+                        at the same location.
+    """
+    depthsorted = [y for (y,x) in sorted(zip(depth,deltaT))]
+    Timesorted  = [x for (y,x) in sorted(zip(depth,deltaT))]
+    
+    data = np.zeros([firstN,3])
+    
+    for j in range(firstN):
+        t = Fsorted[i]
+        Ncycles = 0
+        for i in range(len(bins)-1):
+            inds = np.logical_and(((Time[:50000]%t)/t>bins[i]),(Time[:50000]%t)/t<=bins[i+1])
+
+            Flux[i] = np.mean(Flux[:50000][inds])
+            Fluxstd[i] = np.std(Flux[:50000][inds])
+
+        Df = Flux[:-1] - Flux[1:]
+        for i in range(1,len(Df)):
+            if (Df[i]>3*np.std(Df)) & (Df[i-1]<3*np.std(Df)):
+                Ncycles += 1
+            
+        #data[j,0] = 
+    
+
+
 class DEOptimizer(object):
     """
     This will be our program that we use to optimize our posterior, prior to
