@@ -1,8 +1,8 @@
 import numpy as np
 import emcee
 import kplr
-from scipy.optimize import interp1d
-#import batman
+from scipy.interpolate import interp1d
+import batman
 
 
 
@@ -124,6 +124,47 @@ class DEOptimizer(object):
         print "Optimization has Converged"
         print "Best Parameters:  " , self.VECTORS[:,np.argmin(self.CURRENT_FX)]
         return
+def correlatefn(time, fluxfn, dt):
+    """
+    Compute auto-correlation function of signal
+
+    @parameters:
+    time - array of times
+
+    flux - the signal to be autocorrelated over. Needs
+    to be a continuous function from 0 - t, with masked out points
+    set to 0.
+
+    n_coors - Max number of data points to correlated over.  Will
+    compute correlations from 0 - n_coors
+
+
+    filt - Boolean to filter or not to filter
+
+    std_filter - Mask out outliers with signal > std_filter*std
+
+    """
+    delt = time[1] - time[0]
+    time = np.arange(time[0], time[-1], delt)
+
+    coor = []
+    flux = fluxfn(time)
+    mean = np.mean(flux)
+    standard_dev = np.std(flux)
+
+    for delta in dt:
+        time_mod = np.arange(time[0]+1.1*delta, time[-1]-1.1*delta, delt)
+        I1 = fluxfn(time_mod)
+        I2 = fluxfn(time_mod+delta)
+
+        inds1 = (I1 >= 0)
+        inds2 = (I2 >= 0)
+
+        inds = inds1 & inds2
+        N = sum(inds)
+        coor.append(sum((I1[inds]*I2[inds]))/N)
+    return np.array(coor)
+
 
 def correlate(flux, n_coors = 80,filt = False, std_filter = 5):
     """
@@ -148,7 +189,7 @@ def correlate(flux, n_coors = 80,filt = False, std_filter = 5):
     standard_dev = np.nanstd(flux)
     for delta in xrange(n_coors):
         I1 = np.copy(flux)
-        I2 = array(list(flux[delta:]) + list(flux[0:delta]))
+        I2 = np.array(list(flux[delta:]) + list(flux[0:delta]))
 
         inds1 = (I1 >= 0.5)
         inds2 = (I2 >= 0.5)
