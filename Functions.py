@@ -33,26 +33,19 @@ def Query_database(exoplanet_name):
     """
     client = kplr.API()
     planet = client.planet(exoplanet_name)
-    lcs = planet.get_lightcurves(short_cadence=False)
+    lcs = planet.get_light_curves(short_cadence=False)
     time = np.zeros(0)
     flux = np.zeros(0)
     ferr = np.zeros(0)
     
     for lc in lcs:
         with lc.open() as f:
-            hdu_data = f[1].data()
-            time = np.append(time,hdu_data["time"])
-            flux = np.append(flux,hdu_data["PDCSAP_FLUX"])
-            ferr = np.append(ferr,hud_data["PDCSAP_FLUX_ERR"])
-            
-    Time_cleaned = Time[np.isfinite(flux)]
-    Ferr_cleaned = ferr[np.isfinite(flux)]
-    Flux_cleaned = flux[np.isfinite(flux)]
+            hdu_data = f[1].data
+            time = np.append(time,hdu_data["time"][np.isfinite(hdu_data["PDCSAP_FLUX"])])
+            flux = np.append(flux,hdu_data["PDCSAP_FLUX"][np.isfinite(hdu_data["PDCSAP_FLUX"])]/np.nanmedian(hdu_data["PDCSAP_FLUX"]))
+            ferr = np.append(ferr,hdu_data["PDCSAP_FLUX_ERR"][np.isfinite(hdu_data["PDCSAP_FLUX"])]/np.nanmedian(hdu_data["PDCSAP_FLUX"]))
     
-    Ferr_norm = Ferr_cleaned / np.median(Flux_cleaned)
-    Flux_norm = Flux_cleaned / np.median(FLux_cleaned)
-    
-    return Time_cleaned , Flux_norm , Ferr_norm
+    return time , flux , ferr
 
 
 def Scan_for_transits(time,flux,lowerlim,upperlim,deltaT):
@@ -97,7 +90,6 @@ def Identify_transits(deltaT,depth):
     transit_list = []
     
     while i<len(deltaT):
-        if i%1000 ==0: print depth_processed[i]
         if depth_processed[i] <= -1:
             # transit candidate, search for brightest nearby signal
             Transit_time = 0.0
@@ -111,7 +103,6 @@ def Identify_transits(deltaT,depth):
             j = 0
             while depth_processed[j+i] <= -1:
                 if depth[j+i] < Transit_depth:
-                    print Transit_depth,depth[j+i]
                     Transit_time = deltaT[j+i]
                     Transit_depth = depth[j+i]
                 j += 1
@@ -128,10 +119,10 @@ def Identify_transits(deltaT,depth):
     return Transit_array
         
     
-def Get_scan_info(deltaT,depth,firstN,Flux,Time):
+def Get_scan_info(deltaT,depth,Flux,Time):
     """
-    For the firstN strongest transits (as measured by depth), calculate the following 
-    two quantities:
+    Pass a list of transit candidates with period deltaT and transit depth depth.  For all of these
+    calculate the following:
     
     Ntransits:          The number of transits that occur when the lightcurve is folded on this timescale
                         This is useful for discriminating real transits from harmonics.
@@ -140,27 +131,38 @@ def Get_scan_info(deltaT,depth,firstN,Flux,Time):
                         We expect this should be larger if the timescale deltaT is a fraction of the true
                         transit signal, because it will place transits in resonance, but also non-transits
                         at the same location.
+    
+    Return an array containing the transit period, depth, Number of transits detected, and the sttdev of the 
+    flux at peak depth.
     """
     depthsorted = [y for (y,x) in sorted(zip(depth,deltaT))]
     Timesorted  = [x for (y,x) in sorted(zip(depth,deltaT))]
     
-    data = np.zeros([firstN,3])
+    data = np.zeros([len(deltaT),4])
     
-    for j in range(firstN):
-        t = Fsorted[i]
+    bins = np.linspace(0,1,300)
+    flux = np.zeros(len(bins)-1)
+    fluxstd = np.zeros(len(bins)-1)
+    
+    for j in range(len(deltaT)):
+        t = Timesorted[j]
+        print t
         Ncycles = 0
         for i in range(len(bins)-1):
-            inds = np.logical_and(((Time[:50000]%t)/t>bins[i]),(Time[:50000]%t)/t<=bins[i+1])
-
-            Flux[i] = np.mean(Flux[:50000][inds])
-            Fluxstd[i] = np.std(Flux[:50000][inds])
-
-        Df = Flux[:-1] - Flux[1:]
-        for i in range(1,len(Df)):
-            if (Df[i]>3*np.std(Df)) & (Df[i-1]<3*np.std(Df)):
+            inds = np.logical_and(((Time%t)/t>bins[i]),(Time%t)/t<=bins[i+1])
+            flux[i] = np.median(Flux[inds])
+            fluxstd[i] = np.std(Flux[inds])
+            
+        for i in range(1,len(flux)):
+            if (flux[i]-np.median(flux)<-3*np.std(flux)) & (flux[i-1]-np.median(flux)>=-3*np.std(flux)):
                 Ncycles += 1
             
-        #data[j,0] = 
+        data[j,0] = Timesorted[j]
+        data[j,1] = depthsorted[j]
+        data[j,2] = Ncycles
+        data[j,3] = fluxstd[np.argmin(flux)] 
+    
+    return data
     
 
 
