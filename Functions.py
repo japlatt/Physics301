@@ -90,7 +90,7 @@ def Identify_transits(deltaT,depth):
     transit_list = []
     
     while i<len(deltaT):
-        if depth_processed[i] <= -1:
+        if depth_processed[i] <= -2:
             # transit candidate, search for brightest nearby signal
             Transit_time = 0.0
             Transit_depth = np.inf
@@ -154,7 +154,7 @@ def Get_scan_info(deltaT,depth,Flux,Time):
             fluxstd[i] = np.std(Flux[inds])
             
         for i in range(1,len(flux)):
-            if (flux[i]-np.median(flux)<-3*np.std(flux)) & (flux[i-1]-np.median(flux)>=-3*np.std(flux)):
+            if (flux[i]-np.median(flux)<-4*np.std(flux)) & (flux[i-1]-np.median(flux)>=-4*np.std(flux)):
                 Ncycles += 1
             
         data[j,0] = Timesorted[j]
@@ -164,6 +164,33 @@ def Get_scan_info(deltaT,depth,Flux,Time):
     
     return data
     
+def Remove_harmonics(data):
+    """
+    Takes the output of the Get_scan_info function.  Removes any lines which have more than 1 transit, or which are
+    a 1/int fraction of the strongest 5 transits (with only 1 detected dip).
+    
+    Returns the cleaned array
+    """
+    # First, clean away any candidates with multiple transits.
+    first_cleaned_list = []
+    for i in range(data.shape[0]):
+        if np.isclose(data[i,2],1.0):
+            first_cleaned_list.append(data[i])
+    
+    # second, remove any remaining candidates that are 1/int fractions of the strongest signals
+    # iterate until the end of the list is reached.
+    i=0
+    while i < len(first_cleaned_list):
+        for j in range(len(first_cleaned_list)-1,i):
+            for k in range(2,10):
+                if (abs(first_cleaned_list[j][0]/first_cleaned_list[i][0] - 1./float(k)) < 0.001):
+                    first_cleaned_list.pop(j)
+        i += 1
+    cleaned_array = np.zeros([len(first_cleaned_list),len(first_cleaned_list[0])])
+    for i in range(cleaned_array.shape[0]):
+        cleaned_array[i,:] = first_cleaned_list[i]
+    return cleaned_array 
+        
 
 
 class DEOptimizer(object):
