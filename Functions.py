@@ -67,7 +67,7 @@ def Scan_for_transits(time,flux,lowerlim,upperlim,deltaT):
     deltaT = np.arange(lowerlim,upperlim,deltaT)
     depth = np.zeros(deltaT.shape)
     for j,t in enumerate(deltaT):
-        if np.isclose(t%0.25,0): print t
+        print t
         for i in range(len(bins)-1):
             inds = np.logical_and(((time%t)/t>bins[i]),(time%t)/t<=bins[i+1])
 
@@ -86,7 +86,7 @@ def Identify_transits(deltaT,depth):
     
     i = 10
     
-    depth_processed = (depth-np.median(depth))/np.std(depth)
+    depth_processed = (depth-np.median(depth))/np.std(depth[np.where(abs(depth-np.median(depth))/np.std(depth)<3)])
     transit_list = []
     
     while i<len(deltaT):
@@ -94,28 +94,32 @@ def Identify_transits(deltaT,depth):
             # transit candidate, search for brightest nearby signal
             Transit_time = 0.0
             Transit_depth = np.inf
+            significance = 0.0
             for j in range(i-10,i):
                 if depth[j] < Transit_depth:
                     Transit_time = deltaT[j]
                     Transit_depth = depth[j]
+                    significance = depth_processed[j]
             # have scanned from behind the first detected location, now want to scan ahead
             # do so until the processed signal is back above 1 sigma
             j = 0
-            while depth_processed[j+i] <= -1:
+            while depth_processed[j+i] <= -3:
                 if depth[j+i] < Transit_depth:
                     Transit_time = deltaT[j+i]
                     Transit_depth = depth[j+i]
+                    significance = depth_processed[j+i]
                 j += 1
-            transit_list.append([Transit_time,Transit_depth])
+            transit_list.append([Transit_time,Transit_depth,significance])
             i += j
             
         else:
             i +=1
     
-    Transit_array = np.zeros([len(transit_list),2])
+    Transit_array = np.zeros([len(transit_list),3])
     for i in range(len(transit_list)):
         Transit_array[i,0] = transit_list[i][0]
         Transit_array[i,1] = transit_list[i][1]
+        Transit_array[i,2] = transit_list[i][2]
     return Transit_array
         
     
