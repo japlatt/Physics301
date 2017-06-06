@@ -66,6 +66,7 @@ def Scan_for_transits(time,flux,lowerlim,upperlim,deltaT):
     
     deltaT = np.arange(lowerlim,upperlim,deltaT)
     depth = np.zeros(deltaT.shape)
+    sigma = np.zeros(deltaT.shape)
     for j,t in enumerate(deltaT):
         print t
         for i in range(len(bins)-1):
@@ -73,24 +74,25 @@ def Scan_for_transits(time,flux,lowerlim,upperlim,deltaT):
 
             Flux[i] = np.median(flux[inds])
         depth[j] = np.min(Flux)
+        sigma[j] = np.min((Flux-np.median(Flux))/np.std(Flux[np.where(abs(Flux-np.median(Flux))/np.std(Flux)<3)]))
         
-    return depth ,deltaT
+    return depth ,deltaT , sigma
     
-def Identify_transits(deltaT,depth):
+def Identify_transits(deltaT,depth,sigma):
     """
     parse the full array of deltaT and depth, and identify the individual transit candidates, including
-    their time of peak signal and the depth of that signal
+    their time of peak signal and the depth of that signal.  Use the significance array to determine when a 
+    signal has actually dipped.
     
-    return cleaned list of transit candidates (any depth greater than 1 standard deviation)
+    return cleaned list of transit candidates (any depth greater than 5 standard deviations)
     """
     
     i = 10
     
-    depth_processed = (depth-np.median(depth))/np.std(depth[np.where(abs(depth-np.median(depth))/np.std(depth)<3)])
     transit_list = []
     
     while i<len(deltaT):
-        if depth_processed[i] <= -2:
+        if sigma[i] <= -5:
             # transit candidate, search for brightest nearby signal
             Transit_time = 0.0
             Transit_depth = np.inf
@@ -99,15 +101,15 @@ def Identify_transits(deltaT,depth):
                 if depth[j] < Transit_depth:
                     Transit_time = deltaT[j]
                     Transit_depth = depth[j]
-                    significance = depth_processed[j]
+                    significance = abs(sigma[j])
             # have scanned from behind the first detected location, now want to scan ahead
             # do so until the processed signal is back above 1 sigma
             j = 0
-            while depth_processed[j+i] <= -3:
+            while sigma[j+i] <= -5:
                 if depth[j+i] < Transit_depth:
                     Transit_time = deltaT[j+i]
                     Transit_depth = depth[j+i]
-                    significance = depth_processed[j+i]
+                    significance = abs(sigma[j+i])
                 j += 1
             transit_list.append([Transit_time,Transit_depth,significance])
             i += j
@@ -123,7 +125,7 @@ def Identify_transits(deltaT,depth):
     return Transit_array
         
     
-def Get_scan_info(deltaT,depth,Flux,Time):
+def Get_scan_info(deltaT,depth,sigma,Flux,Time):
     """
     Pass a list of transit candidates with period deltaT and transit depth depth.  For all of these
     calculate the following:
@@ -141,8 +143,9 @@ def Get_scan_info(deltaT,depth,Flux,Time):
     """
     depthsorted = [y for (y,x) in sorted(zip(depth,deltaT))]
     Timesorted  = [x for (y,x) in sorted(zip(depth,deltaT))]
+    sigmasorted = [x for (y,x) in sorted(zip(depth,sigma))]
     
-    data = np.zeros([len(deltaT),4])
+    data = np.zeros([len(deltaT),5])
     
     bins = np.linspace(0,1,300)
     flux = np.zeros(len(bins)-1)
@@ -165,6 +168,7 @@ def Get_scan_info(deltaT,depth,Flux,Time):
         data[j,1] = depthsorted[j]
         data[j,2] = Ncycles
         data[j,3] = fluxstd[np.argmin(flux)] 
+        data[j,4] = sigmasorted[j]
     
     return data
     
@@ -429,3 +433,30 @@ def TransitModel(time,parameters):
     model = batman.TransitModel(params, time)
     return model.light_curve(params)
 
+def Get_parameter_guesses(time,Flux,period_guess):
+    """
+    Fold the lightcurve on the period guess, and use the binning scheme to estimate the peak transit depth,
+    transit width, and transit time.  These will give the planetary radius, orbital separation, and 
+    transit time.  Return a vector with guesses of the parameters to feed to the DE optimizer (maybe
+    upper and lower bounds as well).
+    """
+    time -= np.min(time)
+    
+    bins = np.linspace(0,period_guess,300)
+    flux = np.zeros(len(bins)-1)
+    
+    for i in range(len(bins)-1):
+        inds = np.logical_and(((time%period_guess)>bins[i]),(time%period_guess)<=bins[i+1])
+        flux[i] = np.median(Flux[inds])
+    t0 = bins[np.argmin(Flux)]+np.diff(bins)[0]/2.
+    rp = np.sqrt(1.-np.min(flux))
+    ap = (2*np.pi*(np.max(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) -\
+         np.min(flux)))]) - np.min(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) - np.min(flux)))])))**-1. # Rough estimate
+    inc = 90.
+    ecc = 0.0
+    w = 90.
+    u1 = 0.3
+    u2 = 0.3
+    
+    return np.array([t0,period_guess,rp,ap,inc,ecc,w,u1,u2])
+    
