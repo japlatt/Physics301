@@ -460,3 +460,15 @@ def Get_parameter_guesses(time,Flux,period_guess):
     
     return np.array([t0,period_guess,rp,ap,inc,ecc,w,u1,u2])
     
+def Refine_period_estimate(time,Flux,period_guess):
+    """
+    Zoom in further on the period estimate, and return it.
+    """
+    t,d,sig = scan_for_transits(time,Flux,period_guess-0.001,period_guess+0.00101,0.00001))
+    time_filtered = t[np.isfinite(d)]
+    depth_filtered = d[np.isfinite(d)]
+    sigma_filtered = sig[np.isfinite(d)]
+    
+    return time_filtered[np.argmin(depth_filtered)]
+    
+    
