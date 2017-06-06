@@ -464,7 +464,7 @@ def Refine_period_estimate(time,Flux,period_guess):
     """
     Zoom in further on the period estimate, and return it.
     """
-    t,d,sig = scan_for_transits(time,Flux,period_guess-0.001,period_guess+0.00101,0.00001))
+    t,d,sig = scan_for_transits(time,Flux,period_guess-0.001,period_guess+0.00101,0.00001)
     time_filtered = t[np.isfinite(d)]
     depth_filtered = d[np.isfinite(d)]
     sigma_filtered = sig[np.isfinite(d)]
