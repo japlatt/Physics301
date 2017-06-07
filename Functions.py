@@ -397,12 +397,12 @@ def Cn(time,flux,deltat):
     C /= float(N)
     return C
     
-def loglikelihood(time,flux,fluxerr,parameters):
+def loglikelihood(parameters, time, flux, fluxerr):
     """
     Compute the chi2 for a given set of parameters.
     """
     chi2 = np.sum((flux-TransitModel(time,parameters))**2/fluxerr**2)
-    return chi2
+    return -chi2/2
 
 def TransitModel(time,parameters):
     """
