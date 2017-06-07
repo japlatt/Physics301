@@ -161,7 +161,7 @@ def Get_scan_info(deltaT,depth,sigma,Flux,Time):
             fluxstd[i] = np.std(Flux[inds])
             
         for i in range(1,len(flux)):
-            if (flux[i]-np.median(flux)<-4*np.std(flux)) & (flux[i-1]-np.median(flux)>=-4*np.std(flux)):
+            if (flux[i]-np.median(flux)<-4*np.std(flux[np.where(abs(flux-np.median(flux))/np.std(flux)<2)])) & (flux[i-1]-np.median(flux)>=-4*np.std(flux[np.where(abs(flux-np.median(flux))/np.std(flux)<2)])):
                 Ncycles += 1
             
         data[j,0] = Timesorted[j]
@@ -189,16 +189,53 @@ def Remove_harmonics(data):
     # iterate until the end of the list is reached.
     i=0
     while i < len(first_cleaned_list):
-        for j in range(len(first_cleaned_list)-1,i):
+        
+        for j in range(len(first_cleaned_list)-1,i,-1):
+            print j
             for k in range(2,10):
-                if (abs(first_cleaned_list[j][0]/first_cleaned_list[i][0] - 1./float(k)) < 0.001):
-                    first_cleaned_list.pop(j)
+                print abs(first_cleaned_list[j][0]/first_cleaned_list[i][0] - 1./float(k))
+                if (abs(first_cleaned_list[j][0]/first_cleaned_list[i][0] - 1./float(k)) < 0.01):
+                    removed_transit = first_cleaned_list.pop(j)
+                    print "Transit removed:  " , removed_transit
+                    break
         i += 1
     cleaned_array = np.zeros([len(first_cleaned_list),len(first_cleaned_list[0])])
     for i in range(cleaned_array.shape[0]):
         cleaned_array[i,:] = first_cleaned_list[i]
     return cleaned_array 
+    
+def Remove_fakes(data,Flux,Time):
+    """
+    Some of the signals that get through do so because there is a noise spike that hits 4 sigma.  This spike often
+    will not hit 4 sigma throughout multiple subsets of the data.  Therefore we produce our last discrminating
+    test by removing any signals with less than 4 sigma significance in either half of the data analyzed 
+    separately."""
+    
+    cleaned_list = []
+    for j in range(data.shape[0]):
         
+        bins = np.linspace(0,1,300)
+        flux = np.zeros(len(bins)-1)
+        
+        t = data[j,0]
+            
+        for i in range(len(bins)-1):
+            inds = np.logical_and(((Time[:len(Time)/2]%t)/t>bins[i]),(Time[:len(Time)/2]%t)/t<=bins[i+1])
+            flux[i] = np.median(Flux[:len(Time)/2][inds])
+        
+        if np.sum((flux-np.median(flux)<-4*np.std(flux[np.where(abs(flux-np.median(flux))/np.std(flux)<3)]))) == 0:
+            continue
+        else:
+            for i in range(len(bins)-1):
+                inds = np.logical_and(((Time[len(Time)/2:]%t)/t>bins[i]),(Time[len(Time)/2:]%t)/t<=bins[i+1])
+                flux[i] = np.median(Flux[len(Time)/2:][inds])
+            if np.sum((flux-np.median(flux)<-4*np.std(flux[np.where(abs(flux-np.median(flux))/np.std(flux)<3)]))) == 0:
+                continue
+            cleaned_list.append(data[j,:])
+    cleaned_array = np.zeros([len(cleaned_list),len(cleaned_list[0])])
+    for i in range(cleaned_array.shape[0]):
+        cleaned_array[i,:] = cleaned_list[i]
+    return cleaned_array    
 
 
 class DEOptimizer(object):
@@ -296,6 +333,7 @@ class DEOptimizer(object):
             
             if np.mean(np.std(self.VECTORS,axis=1)) < convThresh:
                 break
+            print i
                 
         print "Optimization has Converged"
         print "Best Parameters:  " , self.VECTORS[:,np.argmin(self.CURRENT_FX)]
@@ -448,10 +486,11 @@ def Get_parameter_guesses(time,Flux,period_guess):
     for i in range(len(bins)-1):
         inds = np.logical_and(((time%period_guess)>bins[i]),(time%period_guess)<=bins[i+1])
         flux[i] = np.median(Flux[inds])
-    t0 = bins[np.argmin(Flux)]+np.diff(bins)[0]/2.
+    t0 = bins[np.argmin(flux)]+np.diff(bins)[0]/2.
     rp = np.sqrt(1.-np.min(flux))
     ap = (2*np.pi*(np.max(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) -\
-         np.min(flux)))]) - np.min(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) - np.min(flux)))])))**-1. # Rough estimate
+         np.min(flux)))]) - np.min(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) - np.min(flux)))]))/period_guess)**-1. # Rough estimate
+    print ap
     inc = 90.
     ecc = 0.0
     w = 90.
