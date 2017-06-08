@@ -3,7 +3,11 @@ import emcee
 import kplr
 from scipy.interpolate import interp1d
 import batman
+<<<<<<< HEAD
 import os
+=======
+import corner
+>>>>>>> f057cabdf276740ff6d34053a3f3bbe359e3eb4a
 
 
 
@@ -528,5 +532,5 @@ def Refine_period_estimate(time,Flux,period_guess):
     sigma_filtered = sig[np.isfinite(d)]
     
     return time_filtered[np.argmin(depth_filtered)]
-    
+
     
