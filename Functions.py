@@ -3,6 +3,7 @@ import emcee
 import kplr
 from scipy.interpolate import interp1d
 import batman
+import corner
 
 
 
@@ -448,7 +449,7 @@ def Get_parameter_guesses(time,Flux,period_guess):
     for i in range(len(bins)-1):
         inds = np.logical_and(((time%period_guess)>bins[i]),(time%period_guess)<=bins[i+1])
         flux[i] = np.median(Flux[inds])
-    t0 = bins[np.argmin(Flux)]+np.diff(bins)[0]/2.
+    t0 = bins[np.argmin(flux)]+np.diff(bins)[0]/2.
     rp = np.sqrt(1.-np.min(flux))
     ap = (2*np.pi*(np.max(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) -\
          np.min(flux)))]) - np.min(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) - np.min(flux)))])))**-1. # Rough estimate
@@ -470,5 +471,5 @@ def Refine_period_estimate(time,Flux,period_guess):
     sigma_filtered = sig[np.isfinite(d)]
     
     return time_filtered[np.argmin(depth_filtered)]
-    
+
     
