@@ -3,11 +3,9 @@ import emcee
 import kplr
 from scipy.interpolate import interp1d
 import batman
-<<<<<<< HEAD
 import os
-=======
 import corner
->>>>>>> f057cabdf276740ff6d34053a3f3bbe359e3eb4a
+
 
 
 
@@ -46,6 +44,10 @@ def Run_scan(name,time_lower,time_upper,time_spacing,OUTPUTDIR):
     np.savetxt(OUTPUTDIR+name+'_'+str(time_lower)+'_'+str(time_upper)+'_'+str(time_spacing)+'_depths.txt',depth[np.isfinite(depth)])
     np.savetxt(OUTPUTDIR+name+'_'+str(time_lower)+'_'+str(time_upper)+'_'+str(time_spacing)+'_periods.txt',deltaT[np.isfinite(depth)])
     np.savetxt(OUTPUTDIR+name+'_'+str(time_lower)+'_'+str(time_upper)+'_'+str(time_spacing)+'_sigmas.txt',sigma[np.isfinite(depth)])
+    
+    return
+    
+
     
     
 def Query_database(exoplanet_name):
