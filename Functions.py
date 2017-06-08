@@ -3,6 +3,7 @@ import emcee
 import kplr
 from scipy.interpolate import interp1d
 import batman
+import os
 
 
 
@@ -24,6 +25,24 @@ def Fw(t ,t0, F0, sigma = 0.01):
         F = np.average(F0,weights=weights)
 
     return F
+    
+    
+def Run_scan(name,time_lower,time_upper,time_spacing,OUTPUTDIR):
+    """
+    Run the full exoplanet detection pipeline (without the filtering).  
+    Write the results to a specified folder, using the info to distinguish 
+    filenames.
+    """
+    # Make the directory for outputs
+    if not os.path.isdir(OUTPUTDIR):
+        os.mkdir(OUTPUTDIR)
+    time,flux,ferr = Query_database(name)
+    depth,deltaT,sigma = Scan_for_transits(time,flux,time_lower,time_upper,time_spacing)
+    
+    np.savetxt(OUTPUTDIR+name+'_'+str(time_lower)+'_'+str(time_upper)+'_'+str(time_spacing)+'_depths.txt',depth[np.isfinite(depth)])
+    np.savetxt(OUTPUTDIR+name+'_'+str(time_lower)+'_'+str(time_upper)+'_'+str(time_spacing)+'_periods.txt',deltaT[np.isfinite(depth)])
+    np.savetxt(OUTPUTDIR+name+'_'+str(time_lower)+'_'+str(time_upper)+'_'+str(time_spacing)+'_sigmas.txt',sigma[np.isfinite(depth)])
+    
     
 def Query_database(exoplanet_name):
     """
