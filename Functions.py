@@ -651,3 +651,59 @@ def Measure_all_transit_centers(time,flux,ferr,Best_transit_parameters):
             
     return transit_times,transit_uncerts,transit_counts
     
+def shift_time(time,Orbital_period,TTV_amp,TTV_period,TTV_phase):
+    """
+    Time is shifted based on the TTV shifting. 
+    
+    Args:
+    
+    Orbital_period      The orbital period of the planet
+    
+    TTV_amp             The amplitude of the TTV signal
+    
+    TTV_period          The period (in transit cycles) of the TTV
+    
+    TTV_phase           The TTV phase shift (0 to 2pi)
+    """
+    super_period = Orbital_period * TTV_period
+    Timeshift = sinusoid(time,TTV_amp,super_period,TTV_phase)
+    return time - Timeshift
+    
+    
+def TTV_TransitModel(time,parameters):
+    """
+    Fit a transit model including a TTV (To hopefully get marginalized uncertainties on TTV parameters)
+    Same first 9 parameters as transit model.  Last 3 are TTV amplitude, TTV period, TTV phase.
+    """
+    params     = batman.TransitParams()
+    params.t0  = parameters[0]                      # time of inferior conjunction
+    params.per = parameters[1]                      # orbital period
+    params.rp  = parameters[2]                      # planet radius (in units of stellar radii)
+    params.a   = parameters[3]                      # semi-major axis (in units of stellar radii)
+    params.inc = parameters[4]                      # orbital inclination (in degrees)
+    params.ecc = parameters[5]                      # eccentricity
+    params.w   = parameters[6]                      # longitude of periastron (in degrees)
+    params.u   = [parameters[7],parameters[8]]      # limb darkening coefficients [u1, u2]
+    params.limb_dark = "quadratic"
+    
+    TTV_amp = parameters[9]
+    TTV_period = parameters[10] 
+    TTV_phase  = parameters[11]
+    
+    model = batman.TransitModel(params, shift_time(time,params.per,TTV_amp,TTV_period,TTV_phase))
+    return model.light_curve(params)
+
+def TTV_minusloglikelihood(parameters,time,flux,fluxerr):
+    """
+    Log-likelihood for DE optimizer
+    """
+    chi2 = np.sum((flux-TTV_TransitModel(time,parameters))**2/fluxerr**2)
+    return chi2/2
+
+def TTV_loglikelihood(parameters,time,flux,fluxerr):
+    """
+    Log-likelihood for MCMC
+    """
+    chi2 = np.sum((flux-TTV_TransitModel(time,parameters))**2/fluxerr**2)
+    return -chi2/2
+    
