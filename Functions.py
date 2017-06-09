@@ -707,3 +707,34 @@ def TTV_loglikelihood(parameters,time,flux,fluxerr):
     chi2 = np.sum((flux-TTV_TransitModel(time,parameters))**2/fluxerr**2)
     return -chi2/2
     
+def TTV_lnlike(params,x,y,yerr):
+    """
+    Old function to fit the high level products of the transit time estimations, to estimate
+    the TTV cycle parameters (should then take results and sample with TTV_loglikelihood)"""
+    return np.sum((y-sinusoid(x,params[0],params[1],params[2]))**2/yerr**2)
+    
+def sinusoid(x,amp,period,phase):
+    """
+    A function to compute a sinusoid with a given amplitude, phase, and period.
+    """
+    return amp*np.sin(2*np.pi*(x/period)+phase)
+    
+def Rivermodel(time,amp,period,phase,Transitparams):
+    """
+    Model river plot to show the trend in the data, given inferred TTV parameters and 
+    inferred transit parameters
+    """
+    Ntransits = int((time[-1]-time[0]) //Transitparams[1] + 1)
+    Period = Transitparams[1]
+    TransitTime = Transitparams[0]
+    pass_through = ((time-np.min(time))-TransitTime+Period/2.) // Period
+    time = (time-np.min(time)+TransitTime) % Period 
+    
+    Rivermodel = np.zeros([Ntransits,400])
+    Time = (np.linspace(-Period/2.,Period/2.,400)+TransitTime)% Period
+    for i in range(Ntransits):
+        TransitTime_shifted = TransitTime + sinusoid(i,amp,period,phase)
+        ModelParams = np.copy(Transitparams)
+        ModelParams[0] = TransitTime_shifted
+        Rivermodel[i,:] = phys.TransitModel(Time,ModelParams)
+    return Rivermodel
