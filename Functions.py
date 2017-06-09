@@ -290,7 +290,16 @@ class DEOptimizer(object):
         self.TRIALS = np.zeros(self.VECTORS.shape)
         self.CURRENT_FX = np.ones(self.VECTORS.shape[1])*np.inf
         self.StrategyProbs = np.array([0.25,0.25,0.25,0.25])
+        self.priorup = np.inf * np.ones(self.VECTORS.shape[0])
+        self.priordn = -np.inf * np.ones(self.VECTORS.shape[0])
         return
+    def SetPriors(self,priorup,priordn):
+        """
+        If we want to set hard priors, this is where to do so.  Otherwise priors are just
+        -inf to inf
+        """
+        self.priorup = priorup
+        self.priordn = priordn
         
     def Mutation(self):
         """
@@ -333,7 +342,7 @@ class DEOptimizer(object):
             f1 = self.CURRENT_FX[i]
             f2 = ftominimize(self.TRIALS[:,i],x,y,yerr)
             
-            if f2 <= f1:
+            if (f2 <= f1) & np.all(self.TRIALS[:,i] > self.priordn) & np.all(self.TRIALS[:,i] < self.priorup):
                 self.VECTORS[:,i] = self.TRIALS[:,i]
                 self.CURRENT_FX[i] = f2
             else:
@@ -511,19 +520,30 @@ def Get_parameter_guesses(time,Flux,period_guess):
     transit time.  Return a vector with guesses of the parameters to feed to the DE optimizer (maybe
     upper and lower bounds as well).
     """
+    # Set time relative to beginning of data taking.
     time -= np.min(time)
     
+    # create bins for flux
     bins = np.linspace(0,period_guess,300)
     flux = np.zeros(len(bins)-1)
     
     for i in range(len(bins)-1):
+        # set filter
         inds = np.logical_and(((time%period_guess)>bins[i]),(time%period_guess)<=bins[i+1])
+        # take median of flux in each bin
         flux[i] = np.median(Flux[inds])
+    
+    # time of transit is roughly time of biggest transit depth
     t0 = bins[np.argmin(flux)]+np.diff(bins)[0]/2.
+    
+    # planet radius is roughly sqrt(1-depth)
     rp = np.sqrt(1.-np.min(flux))
+    
+    # Orbital separation is roughly 1/(2 pi transit_width / Torb)
     ap = (2*np.pi*(np.max(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) -\
          np.min(flux)))]) - np.min(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) - np.min(flux)))]))/period_guess)**-1. # Rough estimate
-    print ap
+    
+    # other parameters don't matter nearly as much
     inc = 90.
     ecc = 0.0
     w = 90.
@@ -547,21 +567,30 @@ def Fold_on_period_TTV(time,flux,period,Time_of_first_transit):
     """
     From before the first transit (half an orbit), fold the lightcurve moving forward
     so that a potential TTV signal may be revealed."""
+    # Count number of transits
     Ntransits = int((time[-1]-time[0]) //period + 1)
+    # setup bins to increase snr
     bins = np.linspace(0,1,401)
+    
+    # Set pass through for filters, and fold the light curve
     pass_through = ((time-np.min(time))-Time_of_first_transit+period/2.) // period
     phase = (time-np.min(time)-Time_of_first_transit+period/2.)%period/period
     
+    # get array to plot
     river = np.zeros([Ntransits,400])
     for i in range(Ntransits):
         #inds = (pass_through==i)
         
         print i
         for j in range(len(bins)-1):
+            # filter data
             inds = (phase > bins[j]) & (phase<bins[j+1]) & (pass_through == i)
+            
             if np.sum(inds) ==0:
-                river[i,j] = 0
+                # if no measurements in bin, bin has no value
+                river[i,j] = np.nan
             else:
+                # get median flux in bin
                 river[i,j] = np.median(flux[inds])
     return river
 
@@ -573,6 +602,7 @@ def Measure_all_transit_centers(time,flux,ferr,Best_transit_parameters):
     in each one.
     """
     
+    # define new transit model that only takes in the transit time.
     def New_TransitModel(time,t0):
         params     = batman.TransitParams()
         params.t0  = t0                   # time of inferior conjunction
@@ -588,26 +618,36 @@ def Measure_all_transit_centers(time,flux,ferr,Best_transit_parameters):
         model = batman.TransitModel(params, time)
         return model.light_curve(params)
     
+    # Identify the number of transits, and which pass through each data point is associated with
     Ntransits = int((time[-1]-time[0]) //Best_transit_parameters[1] + 1)
     pass_through = ((time-np.min(time))-Best_transit_parameters[0]+Best_transit_parameters[1]/2.) // Best_transit_parameters[1]
     
+    # adjust time to be compatible with best transit parameters
     time = (time-np.min(time)) % Best_transit_parameters[1]
+    
+    # form measurement arrays
     transit_times = np.zeros(Ntransits)
     transit_counts = np.zeros(Ntransits)
-    print Ntransits
+    transit_uncerts = np.zeros(Ntransits)
+    
     for i in range(Ntransits):
-
+        # create filter
         inds = (pass_through ==i)
         
+        # parameters to pass to curve fit
         x = time[inds]
         y = flux[inds]
         yerr = ferr[inds]
         p0 = [Best_transit_parameters[0]]
         
+        # dont record anything if there are not observations made at time of transit
         if np.sum(abs(x-Best_transit_parameters[0])<0.5)>1.0:
+            
+            # run curve fit to get the time of transit and uncertainty
             popt,pcov = curve_fit(New_TransitModel,x,y,p0,yerr)
             transit_times[i] = popt[0]
             transit_counts[i] = i
-            print popt[0]
-    return transit_times,transit_counts
+            transit_uncerts[i] = np.sqrt(pcov[0,0])
+            
+    return transit_times,transit_uncerts,transit_counts
     
