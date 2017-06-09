@@ -331,7 +331,7 @@ class DEOptimizer(object):
         """
         for i in range(self.VECTORS.shape[1]):
             f1 = self.CURRENT_FX[i]
-            f2 = ftominimize(x,y,yerr,self.TRIALS[:,i])
+            f2 = ftominimize(self.TRIALS[:,i],x,y,yerr)
             
             if f2 <= f1:
                 self.VECTORS[:,i] = self.TRIALS[:,i]
@@ -474,6 +474,14 @@ def loglikelihood(parameters, time, flux, fluxerr):
     """
     chi2 = np.sum((flux-TransitModel(time,parameters))**2/fluxerr**2)
     return -chi2/2
+    
+def minusloglikelihood(parameters, time, flux, fluxerr):
+    """
+    Compute the chi2 for a given set of parameters.
+    """
+    chi2 = np.sum((flux-TransitModel(time,parameters))**2/fluxerr**2)
+    return chi2/2
+    
 
 def TransitModel(time,parameters):
     """
@@ -534,5 +542,27 @@ def Refine_period_estimate(time,Flux,period_guess):
     sigma_filtered = sig[np.isfinite(d)]
     
     return time_filtered[np.argmin(depth_filtered)]
+    
+def Fold_on_period_TTV(time,flux,period,Time_of_first_transit):
+    """
+    From before the first transit (half an orbit), fold the lightcurve moving forward
+    so that a potential TTV signal may be revealed."""
+    Ntransits = int((time[-1]-time[0]) //period + 1)
+    bins = np.linspace(0,1,401)
+    pass_through = ((time-np.min(time))-Time_of_first_transit+period/2.) // period
+    phase = (time-np.min(time)-Time_of_first_transit+period/2.)%period/period
+    
+    river = np.zeros([Ntransits,400])
+    for i in range(Ntransits):
+        #inds = (pass_through==i)
+        
+        print i
+        for j in range(len(bins)-1):
+            inds = (phase > bins[j]) & (phase<bins[j+1]) & (pass_through == i)
+            if np.sum(inds) ==0:
+                river[i,j] = 0
+            else:
+                river[i,j] = np.median(flux[inds])
+    return river
 
     
