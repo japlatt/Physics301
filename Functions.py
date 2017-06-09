@@ -565,4 +565,49 @@ def Fold_on_period_TTV(time,flux,period,Time_of_first_transit):
                 river[i,j] = np.median(flux[inds])
     return river
 
+def Measure_all_transit_centers(time,flux,ferr,Best_transit_parameters):
+    """
+    Once the best parameters of the transit have been found, break the lightcurve
+    into individual segments, and model for the transit centers of each one (using
+    scipy.optimize.curve_fit).  Return the inferred times of transit and the uncertainty
+    in each one.
+    """
+    
+    def New_TransitModel(time,t0):
+        params     = batman.TransitParams()
+        params.t0  = t0                   # time of inferior conjunction
+        params.per = Best_transit_parameters[1]                      # orbital period
+        params.rp  = Best_transit_parameters[2]                      # planet radius (in units of stellar radii)
+        params.a   = Best_transit_parameters[3]                      # semi-major axis (in units of stellar radii)
+        params.inc = Best_transit_parameters[4]                      # orbital inclination (in degrees)
+        params.ecc = Best_transit_parameters[5]                      # eccentricity
+        params.w   = Best_transit_parameters[6]                      # longitude of periastron (in degrees)
+        params.u   = [Best_transit_parameters[7],Best_transit_parameters[8]]      # limb darkening coefficients [u1, u2]
+        params.limb_dark = "quadratic"                  # limb darkening model
+    
+        model = batman.TransitModel(params, time)
+        return model.light_curve(params)
+    
+    Ntransits = int((time[-1]-time[0]) //Best_transit_parameters[1] + 1)
+    pass_through = ((time-np.min(time))-Best_transit_parameters[0]+Best_transit_parameters[1]/2.) // Best_transit_parameters[1]
+    
+    time = (time-np.min(time)) % Best_transit_parameters[1]
+    transit_times = np.zeros(Ntransits)
+    transit_counts = np.zeros(Ntransits)
+    print Ntransits
+    for i in range(Ntransits):
+
+        inds = (pass_through ==i)
+        
+        x = time[inds]
+        y = flux[inds]
+        yerr = ferr[inds]
+        p0 = [Best_transit_parameters[0]]
+        
+        if np.sum(abs(x-Best_transit_parameters[0])<0.5)>1.0:
+            popt,pcov = curve_fit(New_TransitModel,x,y,p0,yerr)
+            transit_times[i] = popt[0]
+            transit_counts[i] = i
+            print popt[0]
+    return transit_times,transit_counts
     
