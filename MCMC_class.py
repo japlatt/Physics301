@@ -76,7 +76,7 @@ class MCMC(object):
         return array(params), array(upper), array(lower)
 
     def cornerGraph(self, samples, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
-        fig = corner.corner(samples, labels=label)
+        fig = corner.corner(samples, bins=50,plot_datapoints=False,levels=[0.68,0.95],fill_contours=True,max_n_ticks=3,labels=label)
         plt.show()
 
     def plotTrans(self, params, width = 1):
