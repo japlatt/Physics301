@@ -27,8 +27,12 @@ class MCMC(object):
         Compute the chi2 for a given set of parameters.
         """
         prior = self.lnPriorBounds(theta)
-        chi2 = np.sum((self.flux-self.TransitModel(self.time, theta))**2/self.error**2)
-        return prior - chi2/2
+        if np.isfinite(prior):
+            chi2 = np.sum((self.flux-self.TransitModel(self.time, theta))**2/self.error**2)
+            return chi2/2
+        else:
+            return -np.inf
+            
     def lnPriorBounds(self, theta):
         '''
         Set the priors for the MCMC for a given set of 
