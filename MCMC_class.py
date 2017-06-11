@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 def unwrap_self(arg, *emcee, **kwarg):
-    return emcee[0].loglikelihood(arg, **kwarg)
+    return emcee[0].lnPost(arg, **kwarg)
 
 class MCMC(object):
 
@@ -21,14 +21,22 @@ class MCMC(object):
         self.threads = numcores
     
 
+    def lnPost(self, theta):
+        prior = self.lnPriorBounds(theta)
+        if ~np.isfinite(prior):
+            return prior
+        
+        return prior + self.loglikelihood(theta)
 
     def loglikelihood(self, theta):
         """
         Compute the chi2 for a given set of parameters.
         """
-        prior = self.lnPriorBounds(theta)
         chi2 = np.sum((self.flux-self.TransitModel(self.time, theta))**2/self.error**2)
-        return prior - chi2/2
+        return -chi2/2
+
+
+
     def lnPriorBounds(self, theta):
         '''
         Set the priors for the MCMC for a given set of 
@@ -41,11 +49,11 @@ class MCMC(object):
         for i in xrange(len(theta)):
             bl = self.bounds[i][0]
             bh = self.bounds[i][1]
-            if bl >= theta[i] or bh <= theta[i]:
+            if bl > theta[i] or bh < theta[i]:
                 return -np.inf
         return 0
 
-    def performMCMC(self, theta0,numIt, numPrune = 50):
+    def performMCMC(self, theta0, numIt):
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         unwrap_self, args = [self], threads = self.threads)
 
@@ -54,15 +62,31 @@ class MCMC(object):
         for i, result in enumerate(sampler.sample(p0, iterations=numIt)):
             if i == 0:
                 print 'Starting MCMC'
-            if (i+1) % 100 == 0:
+            if (i+1) % 10 == 0:
                 print("{0:5.1%}".format(float(i) / numIt))
-        samples = sampler.chain[:, numPrune:, :].reshape((-1, self.ndim))
         print("Mean acceptance fraction: {0:.3f}"
                 .format(np.mean(sampler.acceptance_fraction)))
-        return samples
+        self.samples = sampler.chain.reshape((-1, self.ndim))
+        self.origSample = sampler.chain
+        self.sampler = sampler
+
+    def pruneSamples(self, numPrune):
+        #self.samples =(self.samples.reshape(self.nwalkers, numPrune, self.ndim)[:,numPrune:, :]).reshape(-1, self.ndim)
+        self.samples = self.origSample[:, numPrune:, :].reshape((-1, self.ndim))
+
+    def chain(self):
+        return self.samples
+
+    def origChain(self):
+        return self.origSample
+
+    def saveSamples(self, name):
+        np.save(name, self.samples)
+
 
     '''Return results of the MCMC with given lower and upper bounds'''
-    def results(self, samples, lower = 16, upper = 84):
+    def results(self, lower = 16, upper = 84):
+        samples = self.samples
         r = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                              zip(*np.percentile(samples, [lower, 50, upper],
                                                 axis=0)))
@@ -73,26 +97,27 @@ class MCMC(object):
             params.append(result[0])
             upper.append(result[1])
             lower.append(result[2])
-        return array(params), array(upper), array(lower)
+        return np.array(params), np.array(upper), np.array(lower)
 
-    def cornerGraph(self, samples, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
-        fig = corner.corner(samples, labels=label)
-        plt.show()
+    def cornerGraph(self, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
+        fig = corner.corner(self.samples, labels=label)
+        return fig
 
-    def plotTrans(self, params, width = 1):
+    def plotTrans(self, params, width = 0.5):
         period = params[1]
         offset = params[0]
 
+        fig = plt.figure(figsize = (10,7))
         timeFold = self.time%period
-        fluxI = interp1d(self.time, self.flux, fill_value = 0)
-        plt.plot(timeFold, fluxI(timeFold), 'b,')
         start = offset-width
         end = offset+width
         tTrans = np.linspace(start, end, 100)
+        fluxI = interp1d(self.time, self.flux, fill_value = 0)
+        plt.plot(timeFold, fluxI(timeFold), 'b,')
+
         plt.plot(tTrans, self.TransitModel(tTrans, params), 'r')
         plt.xlim(start, end)
-        plt.show()
-        return
+        return fig
 
 
     def TransitModel(self, time, parameters):
