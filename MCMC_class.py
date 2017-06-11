@@ -44,7 +44,7 @@ class MCMC(object):
 
         returns 0 if theta in bounds and -inf if not in bound
         '''
-        if np.any(theta < self.bounds[:,0]) | np.any(thet > self.bounds[:,0]):
+        if np.any(theta < self.bounds[:,0]) or np.any(theta > self.bounds[:,1]):
             return -np.inf
         else:
             return 0
@@ -113,6 +113,28 @@ class MCMC(object):
 
         plt.plot(tTrans, self.TransitModel(tTrans, params), 'r')
         plt.xlim(start, end)
+        return fig
+
+
+    def tracePlot():
+        def plotLine(ax, samples, k, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
+            length = samples.shape[0]
+            for i in xrange(length):
+                ax.plot(samples[i, :, k], linewidth = 0.5, alpha = 0.3)
+
+        ax.set_title(label[k])
+        chain = self.origChain
+        fig, ax = plt.subplots(3,3, figsize = (11,8))
+        plotLine(ax[0,0], chain, 0)
+        plotLine(ax[0,1], chain, 1)
+        ax[0,1].set_ylim(5.39875, 5.39876)
+        plotLine(ax[0,2], chain, 2)
+        plotLine(ax[1,0], chain, 3)
+        plotLine(ax[1,1], chain, 4)
+        plotLine(ax[1,2], chain, 5)
+        plotLine(ax[2,0], chain, 6)
+        plotLine(ax[2,1], chain, 7)
+        plotLine(ax[2,2], chain, 8)
         return fig
 
 
