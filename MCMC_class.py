@@ -38,12 +38,11 @@ class MCMC(object):
 
         returns 0 if theta in bounds and -inf if not in bound
         '''
-        for i in xrange(len(theta)):
-            bl = self.bounds[i][0]
-            bh = self.bounds[i][1]
-            if bl >= theta[i] or bh <= theta[i]:
-                return -np.inf
-        return 0
+        if np.any(theta<self.bounds[:,0]) | np.any(thet>self.bounds[:,0]):
+            return -np.inf
+        else:
+            return 0
+        
 
     def performMCMC(self, theta0,numIt, numPrune = 50):
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
@@ -93,6 +92,10 @@ class MCMC(object):
         plt.xlim(start, end)
         plt.show()
         return
+        
+    def TracePlot(self):
+        """
+        Quick trace plot of the chain samples"""
 
 
     def TransitModel(self, time, parameters):
