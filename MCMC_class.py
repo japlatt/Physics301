@@ -34,9 +34,7 @@ class MCMC(object):
         """
         chi2 = np.sum((self.flux-self.TransitModel(self.time, theta))**2/self.error**2)
         return -chi2/2
-
-
-
+            
     def lnPriorBounds(self, theta):
         '''
         Set the priors for the MCMC for a given set of 
@@ -46,12 +44,10 @@ class MCMC(object):
 
         returns 0 if theta in bounds and -inf if not in bound
         '''
-        for i in xrange(len(theta)):
-            bl = self.bounds[i][0]
-            bh = self.bounds[i][1]
-            if bl > theta[i] or bh < theta[i]:
-                return -np.inf
-        return 0
+        if np.any(theta < self.bounds[:,0]) | np.any(thet > self.bounds[:,0]):
+            return -np.inf
+        else:
+            return 0
 
     def performMCMC(self, theta0, numIt):
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
@@ -99,8 +95,8 @@ class MCMC(object):
             lower.append(result[2])
         return np.array(params), np.array(upper), np.array(lower)
 
-    def cornerGraph(self, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
-        fig = corner.corner(self.samples, labels=label)
+    def cornerGraph(self, samples, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
+        fig = corner.corner(samples, bins=50,plot_datapoints=False,levels=[0.68,0.95],fill_contours=True,max_n_ticks=3,labels=label)
         return fig
 
     def plotTrans(self, params, width = 0.5):
