@@ -11,7 +11,7 @@ def unwrap_self(arg, *emcee, **kwarg):
 
 class MCMC(object):
 
-    def __init__(self, nwalkers, ndim,t, f, fe, bounds, numcores = 15):
+    def __init__(self, nwalkers, ndim,t, f, fe, bounds, numcores = 20):
         self.nwalkers = nwalkers
         self.ndim = ndim
         self.time = t
@@ -32,7 +32,7 @@ class MCMC(object):
         """
         Compute the chi2 for a given set of parameters.
         """
-        chi2 = np.sum((self.flux-self.TransitModel(self.time, theta))**2/self.error**2)
+        chi2 = np.sum(self.flux - (self.lightCurve(self.lc, theta)**2)/self.error**2)
         return -chi2/2
             
     def lnPriorBounds(self, theta):
@@ -49,9 +49,11 @@ class MCMC(object):
         else:
             return 0
 
-    def performMCMC(self, theta0, numIt):
+
+    def performMCMC(self, theta0, numIt, name):
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         unwrap_self, args = [self], threads = self.threads)
+        self.lc = self.initTransitModel(self.time, theta0)
 
         p0 = [theta0 + 1e-4*np.random.randn(self.ndim) for i in range(self.nwalkers)]
 
@@ -60,6 +62,9 @@ class MCMC(object):
                 print 'Starting MCMC'
             if (i+1) % 10 == 0:
                 print("{0:5.1%}".format(float(i) / numIt))
+
+
+
         print("Mean acceptance fraction: {0:.3f}"
                 .format(np.mean(sampler.acceptance_fraction)))
         self.samples = sampler.chain.reshape((-1, self.ndim))
@@ -95,8 +100,8 @@ class MCMC(object):
             lower.append(result[2])
         return np.array(params), np.array(upper), np.array(lower)
 
-    def cornerGraph(self, samples, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
-        fig = corner.corner(samples, bins=50,plot_datapoints=False,levels=[0.68,0.95],fill_contours=True,max_n_ticks=3,labels=label)
+    def cornerGraph(self, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
+        fig = corner.corner(self.samples, bins=50,plot_datapoints=False,levels=[0.68,0.95],fill_contours=True,max_n_ticks=3,labels=label)
         return fig
 
     def plotTrans(self, params, width = 0.5):
@@ -105,18 +110,19 @@ class MCMC(object):
 
         fig = plt.figure(figsize = (10,7))
         timeFold = self.time%period
+        fluxFold = self.fluc%period
         start = offset-width
         end = offset+width
         tTrans = np.linspace(start, end, 100)
-        fluxI = interp1d(self.time, self.flux, fill_value = 0)
-        plt.plot(timeFold, fluxI(timeFold), 'b,')
+        #fluxI = interp1d(self.time, self.flux, fill_value = 0)
+        plt.plot(timeFold, fluxFold, 'b,')
 
         plt.plot(tTrans, self.TransitModel(tTrans, params), 'r')
         plt.xlim(start, end)
         return fig
 
 
-    def tracePlot():
+    def tracePlot(self):
         def plotLine(ax, samples, k, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
             length = samples.shape[0]
             for i in xrange(length):
@@ -137,14 +143,7 @@ class MCMC(object):
         plotLine(ax[2,2], chain, 8)
         return fig
 
-
-    def TransitModel(self, time, parameters):
-        """
-        Use the Batman transit modeling code to produce
-        a transit model brightness (normalized to 1), at
-        each time point.
-        """
-        
+    def setParams(self, parameters):
         params     = batman.TransitParams()
         params.t0  = parameters[0]                      # time of inferior conjunction
         params.per = parameters[1]                      # orbital period
@@ -155,6 +154,31 @@ class MCMC(object):
         params.w   = parameters[6]                      # longitude of periastron (in degrees)
         params.u   = [parameters[7],parameters[8]]      # limb darkening coefficients [u1, u2]
         params.limb_dark = "quadratic"                  # limb darkening model
-        
+        return params
+
+    def TransitModel(self, time, parameters):
+        """
+        Use the Batman transit modeling code to produce
+        a transit model brightness (normalized to 1), at
+        each time point.
+        """
+        params = self.setParams(parameters)
         model = batman.TransitModel(params, time)
         return model.light_curve(params)
+
+    def initTransitModel(self, time, parameters):
+        """
+        Use the Batman transit modeling code to produce
+        a transit model brightness (normalized to 1), at
+        each time point.
+        """
+        
+        params = self.setParams(parameters)
+        model = batman.TransitModel(params, time)
+        return model
+    def lightCurve(self, model, parameters):
+        params = self.setParams(parameters)
+        return model.light_curve(params)
+
+
+
