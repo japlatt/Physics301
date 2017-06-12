@@ -49,8 +49,12 @@ class MCMC(object):
         else:
             return 0
 
+    #def addSamples(chain):
 
-    def performMCMC(self, theta0, numIt, name):
+
+
+
+    def performMCMC(self, theta0, numIt, name = None):
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         unwrap_self, args = [self], threads = self.threads)
         self.lc = self.initTransitModel(self.time, theta0)
@@ -62,9 +66,10 @@ class MCMC(object):
                 print 'Starting MCMC'
             if (i+1) % 10 == 0:
                 print("{0:5.1%}".format(float(i) / numIt))
-            # if (i+1) % 100 == 0:
-            #     d = np.load(name)
-            #     np.vstack()
+            if (i+1) % 100 == 0:
+                if name != None:
+                    np.save(name, sampler.chain)
+                
 
 
         print("Mean acceptance fraction: {0:.3f}"
@@ -112,7 +117,7 @@ class MCMC(object):
 
         fig = plt.figure(figsize = (10,7))
         timeFold = self.time%period
-        fluxFold = self.fluc%period
+        fluxFold = self.flux%period
         start = offset-width
         end = offset+width
         tTrans = np.linspace(start, end, 100)
