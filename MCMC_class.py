@@ -32,7 +32,7 @@ class MCMC(object):
         """
         Compute the chi2 for a given set of parameters.
         """
-        chi2 = np.sum(self.flux - (self.lightCurve(self.lc, theta)**2)/self.error**2)
+        chi2 = np.sum(((self.flux - self.TransitModel(self.time, theta))**2)/self.error**2)
         return -chi2/2
             
     def lnPriorBounds(self, theta):
@@ -62,7 +62,9 @@ class MCMC(object):
                 print 'Starting MCMC'
             if (i+1) % 10 == 0:
                 print("{0:5.1%}".format(float(i) / numIt))
-
+            # if (i+1) % 100 == 0:
+            #     d = np.load(name)
+            #     np.vstack()
 
 
         print("Mean acceptance fraction: {0:.3f}"
