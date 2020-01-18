@@ -491,6 +491,39 @@ def minusloglikelihood(parameters, time, flux, fluxerr):
     chi2 = np.sum((flux-TransitModel(time,parameters))**2/fluxerr**2)
     return chi2/2
     
+def initTransitModel(time, parameters):
+    """
+    Use the Batman transit modeling code to produce
+    a transit model brightness (normalized to 1), at
+    each time point.
+    """
+    
+    params     = batman.TransitParams()
+    params.t0  = parameters[0]                      # time of inferior conjunction
+    params.per = parameters[1]                      # orbital period
+    params.rp  = parameters[2]                      # planet radius (in units of stellar radii)
+    params.a   = parameters[3]                      # semi-major axis (in units of stellar radii)
+    params.inc = parameters[4]                      # orbital inclination (in degrees)
+    params.ecc = parameters[5]                      # eccentricity
+    params.w   = parameters[6]                      # longitude of periastron (in degrees)
+    params.u   = [parameters[7],parameters[8]]      # limb darkening coefficients [u1, u2]
+    params.limb_dark = "quadratic"                  # limb darkening model
+    
+    model = batman.TransitModel(params, time)
+    return model
+def lightCurve(model, parameters):
+    params     = batman.TransitParams()
+    params.t0  = parameters[0]                      # time of inferior conjunction
+    params.per = parameters[1]                      # orbital period
+    params.rp  = parameters[2]                      # planet radius (in units of stellar radii)
+    params.a   = parameters[3]                      # semi-major axis (in units of stellar radii)
+    params.inc = parameters[4]                      # orbital inclination (in degrees)
+    params.ecc = parameters[5]                      # eccentricity
+    params.w   = parameters[6]                      # longitude of periastron (in degrees)
+    params.u   = [parameters[7],parameters[8]]      # limb darkening coefficients [u1, u2]
+    params.limb_dark = "quadratic" 
+
+    return model.light_curve(parameters)
 
 def TransitModel(time,parameters):
     """
@@ -541,7 +574,7 @@ def Get_parameter_guesses(time,Flux,period_guess):
     
     # Orbital separation is roughly 1/(2 pi transit_width / Torb)
     ap = (2*np.pi*(np.max(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) -\
-         np.min(flux)))]) - np.min(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) - np.min(flux)))]))/period_guess)**-1. # Rough estimate
+         np.min(flux)))]) - np.min(bins[np.where(flux < np.median(flux) - 0.8*(np.median(flux) - np.min(flux)))]))/period_guess) **-1. # Rough estimate
     
     # other parameters don't matter nearly as much
     inc = 90.
@@ -699,6 +732,21 @@ def TTV_minusloglikelihood(parameters,time,flux,fluxerr):
     """
     chi2 = np.sum((flux-TTV_TransitModel(time,parameters))**2/fluxerr**2)
     return chi2/2
+def TransitModel68C(time, parameters):
+    params     = batman.TransitParams()
+    params.t0  = parameters[0]                      # time of inferior conjunction
+    params.per = parameters[1]                      # orbital period
+    params.rp  = parameters[2]                      # planet radius (in units of stellar radii)
+    params.a   = parameters[3]                      # semi-major axis (in units of stellar radii)
+    params.inc = 86.93                              # orbital inclination (in degrees)
+    params.ecc = 0.0                                # eccentricity
+    params.w   = 90                                 # longitude of periastron (in degrees)
+    params.u   = [0.3908288, 0.263158]              # limb darkening coefficients [u1, u2]
+    params.limb_dark = "quadratic"                  # limb darkening model
+
+    model = batman.TransitModel(params, time)
+    return model.light_curve(params)
+
 
 def TTV_loglikelihood(parameters,time,flux,fluxerr):
     """

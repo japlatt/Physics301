@@ -14,7 +14,7 @@ class MCMC(object):
     def __init__(self, nwalkers, ndim,t, f, fe, bounds, numcores = 20):
         self.nwalkers = nwalkers
         self.ndim = ndim
-        self.time = t
+        self.time = t - min(t)
         self.flux = f
         self.error = fe
         self.bounds = bounds
@@ -32,7 +32,7 @@ class MCMC(object):
         """
         Compute the chi2 for a given set of parameters.
         """
-        chi2 = np.sum(((self.flux - self.TransitModel(self.time, theta))**2)/self.error**2)
+        chi2 = np.sum(((self.flux - self.TransitModel68C(self.time, theta))**2)/self.error**2)
         return -chi2/2
             
     def lnPriorBounds(self, theta):
@@ -54,10 +54,11 @@ class MCMC(object):
 
 
 
+
     def performMCMC(self, theta0, numIt, name = None):
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         unwrap_self, args = [self], threads = self.threads)
-        self.lc = self.initTransitModel(self.time, theta0)
+        #self.lc = self.initTransitModel(self.time, theta0)
 
         p0 = [theta0 + 1e-4*np.random.randn(self.ndim) for i in range(self.nwalkers)]
 
@@ -66,6 +67,7 @@ class MCMC(object):
                 print 'Starting MCMC'
             if (i+1) % 10 == 0:
                 print("{0:5.1%}".format(float(i) / numIt))
+                print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
             if (i+1) % 100 == 0:
                 if name != None:
                     np.save(name, sampler.chain)
@@ -91,6 +93,34 @@ class MCMC(object):
     def saveSamples(self, name):
         np.save(name, self.samples)
 
+    def TransitModel68(self, time, parameters):
+        params     = batman.TransitParams()
+        params.t0  = parameters[0]                      # time of inferior conjunction
+        params.per = parameters[1]                      # orbital period
+        params.rp  = parameters[2]                      # planet radius (in units of stellar radii)
+        params.a   = parameters[3]                      # semi-major axis (in units of stellar radii)
+        params.inc = 87.68                              # orbital inclination (in degrees)
+        params.ecc = 0.02                               # eccentricity
+        params.w   = 90                                 # longitude of periastron (in degrees)
+        params.u   = [0.3908288, 0.263158]              # limb darkening coefficients [u1, u2]
+        params.limb_dark = "quadratic"                  # limb darkening model
+        
+        model = batman.TransitModel(params, time)
+        return model.light_curve(params)
+    def TransitModel68C(self, time, parameters):
+        params     = batman.TransitParams()
+        params.t0  = parameters[0]                      # time of inferior conjunction
+        params.per = parameters[1]                      # orbital period
+        params.rp  = parameters[2]                      # planet radius (in units of stellar radii)
+        params.a   = parameters[3]                      # semi-major axis (in units of stellar radii)
+        params.inc = 86.93                              # orbital inclination (in degrees)
+        params.ecc = 0.0                                # eccentricity
+        params.w   = 90                                 # longitude of periastron (in degrees)
+        params.u   = [0.3908288, 0.263158]              # limb darkening coefficients [u1, u2]
+        params.limb_dark = "quadratic"                  # limb darkening model
+
+        model = batman.TransitModel(params, time)
+        return model.light_curve(params)
 
     '''Return results of the MCMC with given lower and upper bounds'''
     def results(self, lower = 16, upper = 84):
@@ -105,10 +135,13 @@ class MCMC(object):
             params.append(result[0])
             upper.append(result[1])
             lower.append(result[2])
-        return np.array(params), np.array(upper), np.array(lower)
+        return np.array(params), np.arrIay(upper), np.array(lower)
 
     def cornerGraph(self, label = ['Offset', 'Period', 'Radius', 'a', 'inc', 'e', 'peri', 'u1', 'u2']):
-        fig = corner.corner(self.samples, bins=50,plot_datapoints=False,levels=[0.68,0.95],fill_contours=True,max_n_ticks=3,labels=label)
+        fig = corner.corner(self.samples, bins=50,
+            plot_datapoints=False,levels=[0.68,0.95],
+            fill_contours=True,max_n_ticks=3,labels=label,
+            quantiles=[0.16, 0.5, 0.84], show_titles=True, title_kwargs={"fontsize": 15})
         return fig
 
     def plotTrans(self, params, width = 0.5):
@@ -122,7 +155,7 @@ class MCMC(object):
         end = offset+width
         tTrans = np.linspace(start, end, 100)
         #fluxI = interp1d(self.time, self.flux, fill_value = 0)
-        plt.plot(timeFold, fluxFold, 'b,')
+        plt.plot(timeFold, fluxFold, 'k,')
 
         plt.plot(tTrans, self.TransitModel(tTrans, params), 'r')
         plt.xlim(start, end)
